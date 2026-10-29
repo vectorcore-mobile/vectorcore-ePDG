@@ -50,6 +50,17 @@ const (
 	ieAPCO           uint8 = 163
 )
 
+// indicationHI is the Handover Indication flag of the Indication IE's
+// first value octet. TS 29.274 Rel-15 Figure 8.12-1, octet 5: "DAF | DTF |
+// HI | DFI | OI | ISRSI | ISRAI | SGWCI" (bits 8..1), so HI is bit 6 =
+// 0x20; §8.12: "Bit 6 – HI (Handover Indication): ... If this bit is set to
+// 1 over GTP based S2b interface, it shall indicate a UE handover from 3GPP
+// access to Untrusted Non-3GPP Access and UE requested IP address
+// preservation." Octets 1-4 are the IE header, so octet 5 is Payload[0].
+// (This was previously sent as Payload[2] bit 2 = octet 7 bit 2, which
+// Figure 8.12-1 defines as ISRAU, so a spec-compliant PGW could not see it.)
+const indicationHI uint8 = 0x20
+
 const (
 	causeReactivationRequested uint8 = 8  // generic reactivation (not used for access handover)
 	causeAccessChangedTo3GPP   uint8 = 10 // TS 29.274 Table 8.4-1: Access changed from Non-3GPP to 3GPP (VoWiFi→VoLTE)

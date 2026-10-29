@@ -481,8 +481,10 @@ func (c *Client) createSessionPayload(req CreateSessionRequest, ulKbps, dlKbps, 
 		recoveryIE(0),
 	}
 	if req.Handover {
-		// TS 29.274 §8.12: Indication IE, octet 3 bit 1 = HI (Handover Indication).
-		ies = append(ies, ie{Type: ieIndication, Payload: []byte{0x00, 0x00, 0x02}})
+		// TS 29.274 §8.12, Figure 8.12-1: HI is octet 5 bit 6 (see
+		// indicationHI). Three value octets, as before; the receiver treats
+		// flags in octets not sent as 0 (§8.12).
+		ies = append(ies, ie{Type: ieIndication, Payload: []byte{indicationHI, 0x00, 0x00}})
 	}
 	ies = append(ies, c.requestPCOIEs()...)
 	return encodeIEs(ies...)
@@ -887,8 +889,8 @@ func (c *Client) handleDeleteSessionRequest(ctx context.Context, req message, pe
 	if handler != nil {
 		event := DeleteSessionEvent{LocalControlTEID: req.TEID, Sequence: req.Sequence, Peer: peer.String()}
 		if ies, err := decodeIEs(req.Payload); err == nil {
-			if ind, ok := findIEAnyInstance(ies, ieIndication); ok && len(ind.Payload) >= 3 {
-				event.IsHandover = ind.Payload[2]&0x02 != 0
+			if ind, ok := findIEAnyInstance(ies, ieIndication); ok && len(ind.Payload) >= 1 {
+				event.IsHandover = ind.Payload[0]&indicationHI != 0 // Figure 8.12-1 octet 5 bit 6
 			}
 		}
 		go handler(ctx, event)

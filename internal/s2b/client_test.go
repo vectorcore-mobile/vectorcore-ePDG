@@ -1,6 +1,7 @@
 package s2b
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -559,5 +560,42 @@ func TestParseDeleteBearerRequestMasksEBI(t *testing.T) {
 	}
 	if len(event.EBIs) != 1 || event.EBIs[0] != 5 {
 		t.Fatalf("EBIs = %v", event.EBIs)
+	}
+}
+
+// TestCreateSessionPayloadHandoverIndication: a handover Create Session
+// Request carries the Indication IE with HI at TS 29.274 Figure 8.12-1
+// octet 5 bit 6. Golden bytes from the figure: IE header 4D 00 03 00
+// (type 77, length 3, instance 0), value 20 00 00. Without Handover the
+// IE is absent.
+func TestCreateSessionPayloadHandoverIndication(t *testing.T) {
+	c := NewClient(testConfig(), slog.Default())
+	payload := c.createSessionPayload(CreateSessionRequest{IMSI: "311435300070580", APN: "ims", Handover: true},
+		0, 0, 0x01020304, 0x05060708)
+	want := []byte{0x4D, 0x00, 0x03, 0x00, 0x20, 0x00, 0x00}
+	if !bytes.Contains(payload, want) {
+		t.Fatalf("Create Session payload does not contain the Indication IE % x:\n% x", want, payload)
+	}
+	ies, err := decodeIEs(payload)
+	if err != nil {
+		t.Fatalf("decodeIEs() error = %v", err)
+	}
+	ind, ok := findIE(ies, ieIndication, 0)
+	if !ok || ind.Payload[0]&indicationHI == 0 || ind.Payload[2]&0x02 != 0 {
+		t.Fatalf("Indication = % x ok=%t, want HI (octet 5 bit 6) set and ISRAU (octet 7 bit 2) clear", ind.Payload, ok)
+	}
+	// Independent reference decoder (go-gtp): HI set, ISRAU not.
+	ref, err := ieref.Parse(want)
+	if err != nil {
+		t.Fatalf("go-gtp ie.Parse: %v", err)
+	}
+	if !ref.HasHI() || ref.HasISRAU() {
+		t.Fatalf("go-gtp reads HI=%t ISRAU=%t, want HI only", ref.HasHI(), ref.HasISRAU())
+	}
+
+	payload = c.createSessionPayload(CreateSessionRequest{IMSI: "311435300070580", APN: "ims"}, 0, 0, 0x01020304, 0x05060708)
+	ies, _ = decodeIEs(payload)
+	if _, ok := findIE(ies, ieIndication, 0); ok {
+		t.Fatal("Indication IE present on a non-handover Create Session Request")
 	}
 }
